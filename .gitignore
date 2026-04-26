@@ -9,8 +9,10 @@ env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.cache/
 
 data/*.csv
+assets/models/*.task
 assets/demo/*.png
 assets/demo/*.jpg
 assets/demo/*.jpeg

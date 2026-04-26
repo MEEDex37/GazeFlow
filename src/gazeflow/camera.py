@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from src.gazeflow.eye_tracker import EyeTracker
+from src.gazeflow.face_tracker import FaceTracker
+
 try:
     import cv2
 except ImportError:  # pragma: no cover - depends on local environment
@@ -23,8 +26,11 @@ class Camera:
                 "from the project root, then try again."
             )
 
+        face_tracker = FaceTracker()
+        eye_tracker = EyeTracker()
         capture = cv2.VideoCapture(self.camera_index)
         if not capture.isOpened():
+            face_tracker.close()
             raise RuntimeError(
                 f"Could not open webcam at camera index {self.camera_index}. "
                 "Check camera permissions or try another camera index."
@@ -38,10 +44,18 @@ class Camera:
                 if not success:
                     raise RuntimeError("Could not read a frame from the webcam.")
 
+                face_landmarks = face_tracker.detect(frame)
+                if face_landmarks is None:
+                    self._draw_status(frame, "No face detected", color=(0, 0, 255))
+                else:
+                    eye_landmarks = eye_tracker.extract(face_landmarks, frame.shape)
+                    eye_tracker.draw(frame, eye_landmarks)
+                    self._draw_status(frame, "Face and eyes detected", color=(0, 255, 0))
+
                 cv2.putText(
                     frame,
                     "GazeFlow - press q or Esc to exit",
-                    (20, 40),
+                    (20, 75),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.8,
                     (0, 255, 0),
@@ -54,5 +68,18 @@ class Camera:
                 if key in (ord("q"), 27):
                     break
         finally:
+            face_tracker.close()
             capture.release()
             cv2.destroyAllWindows()
+
+    def _draw_status(self, frame: object, text: str, color: tuple[int, int, int]) -> None:
+        cv2.putText(
+            frame,
+            text,
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            color,
+            2,
+            cv2.LINE_AA,
+        )
