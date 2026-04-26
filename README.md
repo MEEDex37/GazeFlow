@@ -3,7 +3,7 @@ Real-time webcam-based eye tracking and attention analytics using Python, OpenCV
 
 ## Current Status
 
-Phase 2 is implemented: the app opens the webcam, detects one face with MediaPipe Face Landmarker, and draws eye/iris landmarks on the live camera feed.
+Phase 3 is implemented: the app opens the webcam, detects one face with MediaPipe Face Landmarker, draws eye/iris landmarks, and displays a heuristic gaze direction on the live camera feed.
 
 ## Run
 
@@ -15,6 +15,10 @@ python main.py
 ```
 
 Press `q` or `Esc` to close the camera window.
+
+## Gaze Direction
+
+The current gaze direction is estimated by comparing iris center position against the eye contour bounds. The webcam preview uses mirrored horizontal labeling so left/right matches the user's perspective. The thresholds are tuned for high sensitivity, so small eye movements should change direction quickly, but the output may flicker until calibration is added.
 
 ## Model File
 

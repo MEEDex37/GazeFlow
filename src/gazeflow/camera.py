@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.gazeflow.eye_tracker import EyeTracker
 from src.gazeflow.face_tracker import FaceTracker
+from src.gazeflow.gaze_estimator import GazeEstimator
 
 try:
     import cv2
@@ -28,6 +29,7 @@ class Camera:
 
         face_tracker = FaceTracker()
         eye_tracker = EyeTracker()
+        gaze_estimator = GazeEstimator(mirror_horizontal=True)
         capture = cv2.VideoCapture(self.camera_index)
         if not capture.isOpened():
             face_tracker.close()
@@ -50,12 +52,23 @@ class Camera:
                 else:
                     eye_landmarks = eye_tracker.extract(face_landmarks, frame.shape)
                     eye_tracker.draw(frame, eye_landmarks)
+                    gaze_result = gaze_estimator.estimate(eye_landmarks)
                     self._draw_status(frame, "Face and eyes detected", color=(0, 255, 0))
+                    self._draw_status(
+                        frame,
+                        (
+                            f"{gaze_result.label} "
+                            f"(x={gaze_result.horizontal_ratio:.2f}, "
+                            f"y={gaze_result.vertical_ratio:.2f})"
+                        ),
+                        color=(255, 255, 0),
+                        position=(20, 75),
+                    )
 
                 cv2.putText(
                     frame,
                     "GazeFlow - press q or Esc to exit",
-                    (20, 75),
+                    (20, 110),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.8,
                     (0, 255, 0),
@@ -72,11 +85,17 @@ class Camera:
             capture.release()
             cv2.destroyAllWindows()
 
-    def _draw_status(self, frame: object, text: str, color: tuple[int, int, int]) -> None:
+    def _draw_status(
+        self,
+        frame: object,
+        text: str,
+        color: tuple[int, int, int],
+        position: tuple[int, int] = (20, 40),
+    ) -> None:
         cv2.putText(
             frame,
             text,
-            (20, 40),
+            position,
             cv2.FONT_HERSHEY_SIMPLEX,
             0.8,
             color,
