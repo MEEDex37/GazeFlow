@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.gazeflow.blink_detector import BlinkDetector
 from src.gazeflow.eye_tracker import EyeTracker
 from src.gazeflow.face_tracker import FaceTracker
 from src.gazeflow.gaze_estimator import GazeEstimator
@@ -30,6 +31,7 @@ class Camera:
         face_tracker = FaceTracker()
         eye_tracker = EyeTracker()
         gaze_estimator = GazeEstimator(mirror_horizontal=True)
+        blink_detector = BlinkDetector()
         capture = cv2.VideoCapture(self.camera_index)
         if not capture.isOpened():
             face_tracker.close()
@@ -53,6 +55,7 @@ class Camera:
                     eye_landmarks = eye_tracker.extract(face_landmarks, frame.shape)
                     eye_tracker.draw(frame, eye_landmarks)
                     gaze_result = gaze_estimator.estimate(eye_landmarks)
+                    blink_result = blink_detector.detect(eye_landmarks)
                     self._draw_status(frame, "Face and eyes detected", color=(0, 255, 0))
                     self._draw_status(
                         frame,
@@ -64,11 +67,22 @@ class Camera:
                         color=(255, 255, 0),
                         position=(20, 75),
                     )
+                    blink_text = (
+                        "Blink Detected"
+                        if blink_result.blink_detected
+                        else f"Blinks: {blink_result.blink_count}"
+                    )
+                    self._draw_status(
+                        frame,
+                        f"{blink_text} (open={blink_result.openness_ratio:.2f})",
+                        color=(0, 165, 255),
+                        position=(20, 110),
+                    )
 
                 cv2.putText(
                     frame,
                     "GazeFlow - press q or Esc to exit",
-                    (20, 110),
+                    (20, 145),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.8,
                     (0, 255, 0),
