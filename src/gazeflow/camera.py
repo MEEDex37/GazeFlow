@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from src.gazeflow.blink_detector import BlinkDetector
+from src.gazeflow.calibration import CalibrationSession, load_calibration_profile
 from src.gazeflow.eye_tracker import EyeTracker
 from src.gazeflow.face_tracker import FaceTracker
 from src.gazeflow.gaze_estimator import GazeEstimator
@@ -30,8 +31,10 @@ class Camera:
 
         face_tracker = FaceTracker()
         eye_tracker = EyeTracker()
-        gaze_estimator = GazeEstimator(mirror_horizontal=True)
+        gaze_estimator = self._make_gaze_estimator()
         blink_detector = BlinkDetector()
+        calibration_session: CalibrationSession | None = None
+        calibration_message = ""
         capture = cv2.VideoCapture(self.camera_index)
         if not capture.isOpened():
             face_tracker.close()
@@ -56,6 +59,13 @@ class Camera:
                     eye_tracker.draw(frame, eye_landmarks)
                     gaze_result = gaze_estimator.estimate(eye_landmarks)
                     blink_result = blink_detector.detect(eye_landmarks)
+                    if calibration_session is not None:
+                        calibration_session.add_result(gaze_result)
+                        if calibration_session.is_complete:
+                            gaze_estimator = self._make_gaze_estimator()
+                            calibration_session = None
+                            calibration_message = "Calibration saved to data/calibration_data.csv"
+
                     self._draw_status(frame, "Face and eyes detected", color=(0, 255, 0))
                     self._draw_status(
                         frame,
@@ -79,10 +89,20 @@ class Camera:
                         position=(20, 110),
                     )
 
+                if calibration_session is not None:
+                    self._draw_calibration_target(frame, calibration_session)
+                elif calibration_message:
+                    self._draw_status(
+                        frame,
+                        calibration_message,
+                        color=(0, 255, 255),
+                        position=(20, 145),
+                    )
+
                 cv2.putText(
                     frame,
-                    "GazeFlow - press q or Esc to exit",
-                    (20, 145),
+                    "GazeFlow - press c to calibrate, q or Esc to exit",
+                    (20, 180),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.8,
                     (0, 255, 0),
@@ -94,10 +114,51 @@ class Camera:
                 key = cv2.waitKey(1) & 0xFF
                 if key in (ord("q"), 27):
                     break
+                if key == ord("c") and calibration_session is None:
+                    calibration_session = CalibrationSession(
+                        mirror_horizontal=gaze_estimator.mirror_horizontal
+                    )
+                    calibration_message = ""
         finally:
             face_tracker.close()
             capture.release()
             cv2.destroyAllWindows()
+
+    def _make_gaze_estimator(self) -> GazeEstimator:
+        profile = load_calibration_profile()
+        if profile is None:
+            return GazeEstimator(mirror_horizontal=True)
+
+        return GazeEstimator(
+            horizontal_low=profile.horizontal_low,
+            horizontal_high=profile.horizontal_high,
+            vertical_low=profile.vertical_low,
+            vertical_high=profile.vertical_high,
+            mirror_horizontal=True,
+            vertical_top=profile.vertical_top,
+            vertical_center=profile.vertical_center,
+            vertical_bottom=profile.vertical_bottom,
+        )
+
+    def _draw_calibration_target(self, frame: object, session: CalibrationSession) -> None:
+        height, width = frame.shape[:2]
+        point_name, screen_x, screen_y = session.current_point
+        target = (int(width * screen_x), int(height * screen_y))
+        progress_width = int(220 * session.progress)
+
+        cv2.circle(frame, target, 26, (0, 255, 255), 2, cv2.LINE_AA)
+        cv2.circle(frame, target, 6, (0, 255, 255), -1, cv2.LINE_AA)
+        self._draw_status(
+            frame,
+            (
+                f"Calibration {session.point_number}/{session.total_points}: "
+                f"{'hold on' if session.is_settling else 'recording'} {point_name}"
+            ),
+            color=(0, 255, 255),
+            position=(20, 145),
+        )
+        cv2.rectangle(frame, (20, 155), (240, 165), (80, 80, 80), 1)
+        cv2.rectangle(frame, (20, 155), (20 + progress_width, 165), (0, 255, 255), -1)
 
     def _draw_status(
         self,
